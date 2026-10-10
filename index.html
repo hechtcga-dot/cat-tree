@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Cat Tree!</title>
+<title>Cat Tree</title>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 <style>
-  html, body { margin: 0; height: 100%; background: #111; }
+  html, body { margin: 0; height: 100%; background: #000; }
   body { display: flex; align-items: center; justify-content: center; }
   canvas { width: min(100vw, calc(100vh * 256 / 240)); image-rendering: pixelated; touch-action: none; }
 </style>
@@ -15,7 +15,7 @@
 <canvas id="game" width="256" height="240"></canvas>
 <script>
 'use strict';
-// Cat Tree! — find Biscuit the cat at the end of the forest, dodging beavers' falling trees.
+// Cat Tree (gritty reboot): get Biscuit back from the beaver syndicate.
 const W = 256, H = 240;
 const cv = document.getElementById('game');
 const ctx = cv.getContext('2d');
@@ -32,9 +32,11 @@ function hash(a, b) {
   return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
 }
 function canvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
-function sprite(rows, pal) {
-  const c = canvas(rows[0].length, rows.length), g = c.getContext('2d');
-  rows.forEach((r, y) => [...r].forEach((ch, x) => { if (pal[ch]) { g.fillStyle = pal[ch]; g.fillRect(x, y, 1, 1); } }));
+// pixel sprite from text rows; optional 1px dark outline
+function sprite(rows, pal, outline) {
+  const o = outline ? 1 : 0, c = canvas(rows[0].length + 2 * o, rows.length + 2 * o), g = c.getContext('2d');
+  if (outline) { g.fillStyle = outline; rows.forEach((r, y) => [...r].forEach((ch, x) => { if (pal[ch]) g.fillRect(x, y, 3, 3); })); }
+  rows.forEach((r, y) => [...r].forEach((ch, x) => { if (pal[ch]) { g.fillStyle = pal[ch]; g.fillRect(x + o, y + o, 1, 1); } }));
   return c;
 }
 function draw(img, x, y, flip) {
@@ -47,37 +49,49 @@ function disc(g, cx, cy, r, c) {
   g.fillStyle = c;
   for (let dy = -r; dy <= r; dy++) { const w = Math.floor(Math.sqrt(r * r - dy * dy) + 0.3); g.fillRect(cx - w, cy + dy, w * 2 + 1, 1); }
 }
-function text(s, x, y, c = '#fff', size = 8) {
+function text(s, x, y, c = '#d8d0c0', size = 8) {
   ctx.font = size + 'px "Press Start 2P", monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
   ctx.fillStyle = '#000'; ctx.fillText(s, x + 1, y + 1); ctx.fillStyle = c; ctx.fillText(s, x, y);
 }
 function box(lines, y0) {
-  rect(12, y0 - 10, W - 24, lines.length * 14 + 16, 'rgba(0,0,0,0.8)');
-  lines.forEach((l, i) => text(l[0], W / 2, y0 + i * 14, l[1] || '#fff'));
+  rect(10, y0 - 10, W - 20, lines.length * 14 + 16, 'rgba(0,0,0,0.85)');
+  rect(10, y0 - 10, W - 20, 1, '#5a1a14'); rect(10, y0 + lines.length * 14 + 5, W - 20, 1, '#5a1a14');
+  lines.forEach((l, i) => text(l[0], W / 2, y0 + i * 14, l[1] || '#d8d0c0'));
+}
+function bubble(s, x, y) {
+  ctx.font = '8px "Press Start 2P", monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  const w = s.length * 8 + 5, bx = clamp(Math.round(x - w / 2), 2, W - w - 2);
+  rect(bx, y - 13, w, 12, '#e4dccb'); rect(bx, y - 13, w, 1, '#000'); rect(x, y - 1, 2, 2, '#e4dccb');
+  ctx.fillStyle = '#140c08'; ctx.fillText(s, bx + 3, y - 11);
 }
 
 // ---------- sprites
+const OUT = '#07070a';
 const PLAYER_ROWS = [
   '....hhhh....',
   '...hhhhhh...',
   '..hhhhhhhh..',
-  '...ssssss...',
+  '..hssssssh..',
   '...sesses...',
   '...ssssss...',
-  '..bbbbbbbb..',
-  '.sbbbbbbbbs.',
-  '.sbbbbbbbbs.',
-  '...pppppp...',
+  '...bssssb...',
+  '....bbbb....',
+  '..cccwwccc..',
+  '.ccccwtcccc.',
+  '.scccctcccs.',
+  '..cccccccc..',
 ];
-const PPAL = { h: '#d83a3a', s: '#f2c38f', e: '#222', b: '#3466c8', p: '#5a3a22', k: '#2a1a10' };
+const PPAL = { h: '#1c1612', s: '#c8946a', e: '#0a0a0a', b: '#2c2018', c: '#2c2c3a', w: '#d0ccc0', t: '#8a1414', p: '#18181e', k: '#050505' };
 const playerImg = [
-  sprite(PLAYER_ROWS.concat(['...pp..pp...', '...kk..kk...']), PPAL),
-  sprite(PLAYER_ROWS.concat(['..pp....pp..', '..kk....kk..']), PPAL),
+  sprite(PLAYER_ROWS.concat(['...pp..pp...', '...kk..kk...']), PPAL, OUT),
+  sprite(PLAYER_ROWS.concat(['..pp....pp..', '..kk....kk..']), PPAL, OUT),
 ];
+const gunImg = sprite(['..tt....', '.tttt...', 'gggggggn', '.gg.....', '.gg.....'], { t: '#ff7a00', g: '#2ec040', n: '#3a8aff' }, OUT);
 
 const BEAVER_ROWS = [
   '....cccccc....',
   '...bbbbbbbb...',
+  '..bkkbbbbkkb..',
   '..bbebbbbebb..',
   '..bbbbnnbbbb..',
   '...bbbwwbbb...',
@@ -87,18 +101,18 @@ const BEAVER_ROWS = [
   '.bxxxxxxxxxxb.',
   '..xxxxxxxxxx..',
   '...bb....bb...',
-  '....tttttt....',
-  '...tttttttt...',
+  '....tuttut....',
+  '...tuttuttt...',
 ];
-// Four kinds of beaver: Gnawer (fells trees), Lumberjack (fast, big trees), Speedy (runs across), Roller (rolls logs)
+// The Dam Syndicate: Gnawer (fells trees), Lumberjack (fast, big trees), Speedy (zig-zags), Roller (rolls logs)
 const BEAVERS = {
-  brown: { b: '#8a5a2b', x: '#8a5a2b', t: '#5a3818' },
-  jack: { b: '#7a4c24', x: '#c8322a', t: '#4e3016', c: '#222' },
-  run: { b: '#b48a52', x: '#3a9ad8', t: '#7a5a30', c: '#fff' },
-  roll: { b: '#6a4626', x: '#6a4626', t: '#422a12', c: '#f0c020' },
+  brown: { b: '#5e3c22', x: '#3a2a1e', t: '#3a2412', u: '#24160a' },
+  jack: { b: '#56361e', x: '#7e1c1c', t: '#36200e', u: '#24160a', c: '#141414' },
+  run: { b: '#7a5634', x: '#1e3a5e', t: '#4a3018', u: '#2a1a0a', c: '#8a8a8a' },
+  roll: { b: '#4e3420', x: '#4a4030', t: '#2e1c0c', u: '#1a1006', c: '#b88a10' },
 };
 const beaverImg = {};
-for (const k in BEAVERS) beaverImg[k] = sprite(BEAVER_ROWS, { e: '#111', n: '#2a1608', w: '#fff', ...BEAVERS[k] });
+for (const k in BEAVERS) beaverImg[k] = sprite(BEAVER_ROWS, { e: '#ff2a1a', k: '#140a04', n: '#0a0604', w: '#e8e0c8', ...BEAVERS[k] }, OUT);
 
 const catImg = sprite([
   '.o........o.',
@@ -112,36 +126,65 @@ const catImg = sprite([
   '.oooddddooo.',
   '.oooooooooo.',
   '..ww....ww..',
-], { o: '#f09030', d: '#c06010', G: '#40c040', p: '#ff80a0', w: '#fff' });
+], { o: '#e08028', d: '#a04c10', G: '#50e050', p: '#ff80a0', w: '#e8e0d0' }, OUT);
 
 const HEART_ROWS = ['.rr.rr.', 'rrrrrrr', 'rrrrrrr', '.rrrrr.', '..rrr..', '...r...'];
-const heartImg = sprite(HEART_ROWS, { r: '#e8304a' });
-const heartEmpty = sprite(HEART_ROWS, { r: '#402028' });
+const heartImg = sprite(HEART_ROWS, { r: '#c41e2a' }, OUT);
+const heartEmpty = sprite(HEART_ROWS, { r: '#2a1416' }, OUT);
 const bellImg = sprite(['.rrrrr.', '..yyy..', '.yyyyy.', 'yywyyyy', 'yyyyyyy', 'yyykyyy', '.yyyyy.'],
-  { r: '#d02a2a', y: '#f0c830', w: '#fff8c0', k: '#5a4000' });
+  { r: '#8a1a1a', y: '#c8a030', w: '#fff0b0', k: '#3a2800' }, OUT);
 
-function makeTree(r, dark, mid, light) {
-  const c = canvas(r * 2 + 4, r * 2 + 4), g = c.getContext('2d');
-  disc(g, r + 2, r + 3, r, 'rgba(0,0,0,0.3)');
-  disc(g, r + 1, r + 1, r, dark);
-  disc(g, r, r, r - 2, mid);
-  disc(g, r - 2, r - 2, Math.max(1, r - 6), light);
+function makeTree(r, [dark, mid, light], seed) {
+  const s = r * 2 + 6, c = canvas(s, s), g = c.getContext('2d'), m = r + 2;
+  disc(g, m + 2, m + 3, r, 'rgba(0,0,0,0.45)');
+  disc(g, m, m, r, dark);
+  for (let i = 0; i < 7; i++) {
+    const a = i * 0.9 + seed;
+    disc(g, Math.round(m + Math.cos(a) * r * 0.45 - 1), Math.round(m + Math.sin(a) * r * 0.45 - 1), Math.round(r * 0.45), mid);
+  }
+  for (let i = 0; i < 4; i++) {
+    const a = i * 1.6 + seed;
+    disc(g, Math.round(m - 2 + Math.cos(a) * r * 0.3), Math.round(m - 2 + Math.sin(a) * r * 0.3), Math.max(1, Math.round(r * 0.22)), light);
+  }
+  g.fillStyle = dark;
+  for (let i = 0; i < r * 5; i++) {
+    const x = m + Math.round(rnd(-r, r)), y = m + Math.round(rnd(-r, r));
+    if ((x - m) ** 2 + (y - m) ** 2 < r * r) g.fillRect(x, y, 1, 1);
+  }
+  return c;
+}
+function makeDeadTree(col, seed) {
+  const c = canvas(24, 24), g = c.getContext('2d');
+  g.fillStyle = col;
+  for (let i = 0; i < 7; i++) {
+    const a = seed + i * 0.9 + Math.sin(i * 3) * 0.3, L = 6 + (i * 37) % 5;
+    for (let s = 0; s < L; s++) g.fillRect(Math.round(12 + Math.cos(a) * s), Math.round(12 + Math.sin(a) * s), s < 3 ? 2 : 1, s < 3 ? 2 : 1);
+    const tx = 12 + Math.cos(a) * L * 0.6, ty = 12 + Math.sin(a) * L * 0.6;
+    for (let s = 0; s < 3; s++) g.fillRect(Math.round(tx + Math.cos(a + 0.7) * s), Math.round(ty + Math.sin(a + 0.7) * s), 1, 1);
+  }
+  g.fillRect(10, 10, 4, 4);
   return c;
 }
 
 // ---------- levels
 const LEVELS = [
-  { name: 'Sunny Pines', len: 2400, ground: '#5aa040', tuft: '#468a32', flower: '#f0e060',
-    tree: ['#1e5a2a', '#2e7a3a', '#4a9a4a'], every: 1.9, pool: ['brown', 'brown', 'run'], music: 'level1' },
-  { name: 'Autumn Woods', len: 3000, ground: '#8a9a40', tuft: '#727a30', flower: '#e05030',
-    tree: ['#8a3a10', '#c06a20', '#e09a40'], every: 1.5, pool: ['brown', 'jack', 'jack', 'run'], music: 'level2' },
-  { name: 'Deep Dark Forest', len: 3600, ground: '#2e5a44', tuft: '#244a38', flower: '#a080e0',
-    tree: ['#0c261a', '#183e2c', '#2a5a40'], every: 1.15, pool: ['brown', 'jack', 'run', 'roll', 'roll'], music: 'level3' },
+  { name: 'I. THE PINES', len: 2400, ground: '#2f4a26', ground2: '#26401f', dirt: '#3e3424', tuft: '#3d5c2c', fleck: '#6a5a3a',
+    tree: ['#0e2414', '#18361e', '#2a4e2a'], dead: 0, dark: 0.42, tint: 'rgba(150,70,30,0.12)', rain: 0, mist: true,
+    every: 1.8, diag: 0.4, pool: ['brown', 'brown', 'run'], music: 'level1' },
+  { name: 'II. ROT HOLLOW', len: 3000, ground: '#38371f', ground2: '#2e2d18', dirt: '#3a2e1e', tuft: '#4a4422', fleck: '#8a4a1a',
+    tree: ['#3a1608', '#6a2a0e', '#9a4a1a'], dead: 0.25, dark: 0.58, tint: 'rgba(40,60,30,0.15)', rain: 1,
+    every: 1.4, diag: 0.6, pool: ['brown', 'jack', 'jack', 'run', 'run'], music: 'level2' },
+  { name: 'III. THE DAM', len: 3600, ground: '#1c2a26', ground2: '#16221d', dirt: '#26221c', tuft: '#24382e', fleck: '#4a4a5a',
+    tree: ['#06120e', '#0e2018', '#1a342a'], dead: 0.45, dark: 0.66, tint: 'rgba(20,30,90,0.18)', rain: 2, lightning: true,
+    every: 1.1, diag: 0.75, pool: ['brown', 'jack', 'run', 'roll', 'roll'], music: 'level3' },
 ];
-for (const l of LEVELS) l.treeImg = makeTree(8, ...l.tree);
+for (const l of LEVELS) { l.treeImgs = [0, 1, 2].map(i => makeTree(9, l.tree, i * 2.1)); l.deadImg = makeDeadTree('#2a2018', 1); }
+
+const TAUNTS = ['TIMBER.', 'NICE CAT.', 'SCRAM.', 'DAM RIGHT.', "SHE'S OURS.", 'BITE ME.', "YOU'RE WOOD."];
+const OUCH = ['GLUB!', 'MY FUR!', 'NOT AGAIN!', 'COLD!', 'I QUIT!'];
 
 // ---------- audio: 8-bit music + noises
-let ac = null, master, musicBus, sfxBus, noiseBuf, muted = false, wantTrack = 'title';
+let ac = null, master, musicBus, sfxBus, rainGain, noiseBuf, muted = false, wantTrack = 'title', wantRain = 2;
 const music = { track: null, step: 0, next: 0 };
 
 function freq(n) {
@@ -159,34 +202,34 @@ function parse(str) {
   });
 }
 const TRACKS = {
-  title: { bpm: 120, loop: true,
-    lead: 'G4 C5 E5 G5 - E5 C5 - A4 D5 F5 A5 - F5 D5 - G4 B4 D5 G5 F5 D5 B4 G4 C5 - - - . . . .',
-    bass: 'C3 . . . G2 . . . D3 . . . A2 . . . G2 . . . G2 . . . C3 . . . C3 . . .',
+  title: { bpm: 90, loop: true,
+    lead: 'E5 - - - D5 - C5 - B4 - - - . . . . E5 - - - G5 - F#5 - E5 - - - . . . .',
+    bass: 'E2 E2 E3 E2 E2 E2 E3 E2 C2 C2 C3 C2 B1 B1 B2 B1',
+    drum: 'k . . . s . . . k . k . s . . h' },
+  level1: { bpm: 132, loop: true,
+    lead: 'E5 . E5 G5 . E5 D5 . B4 - - . D5 E5 - . E5 . E5 G5 . A5 G5 . F#5 - E5 - D5 - B4 .',
+    bass: 'E2 E3 E2 E3 E2 E3 D3 E3 C2 C3 C2 C3 D2 D3 B1 B2',
+    drum: 'k h s h k k s h' },
+  level2: { bpm: 120, loop: true,
+    lead: 'A4 . C5 . B4 . G#4 . A4 - - - . . . . F5 . E5 . D5 . C5 . B4 - - - E5 - - .',
+    bass: 'A1 . A2 . A1 . A2 . F1 . F2 . E1 . E2 .',
+    drum: 'k . h . s . h h k . h k s . h .' },
+  level3: { bpm: 150, loop: true,
+    lead: 'D5 D5 F5 D5 G5 D5 G#5 D5 A5 - G#5 G5 F5 - D5 - D5 D5 F5 D5 G5 D5 F5 E5 C#5 - - - A4 - - -',
+    bass: 'D2 D2 D3 D2 D2 D2 C3 D2 A#1 A#1 A#2 A#1 A1 A1 C#3 A1',
+    drum: 'k h s h k k s s' },
+  clue: { bpm: 100, loop: false, lead: 'E5 - B4 - G5 - - - F#5 - - - . .', bass: 'E2 - - - C2 - - - B1 - - - . .', drum: '' },
+  gameover: { bpm: 100, loop: false, lead: 'E4 - D#4 - D4 - C#4 - - - - - . .', bass: 'E2 - D#2 - D2 - C#2 - - - - - . .', drum: '' },
+  party: { bpm: 120, loop: true,
+    lead: 'G4 C5 E5 G5 - E5 F5 - D5 G5 B5 - A5 G5 F5 - E5 C5 G5 E5 F5 D5 B4 G4 C5 - E5 - C5 - - .',
+    bass: 'C3 G3 E3 G3 G2 D3 B2 D3 A2 E3 C3 E3 F2 C3 G2 D3',
     drum: 'k . h . s . h .' },
-  level1: { bpm: 140, loop: true,
-    lead: 'C5 E5 G5 E5 F5 A5 G5 - E5 G5 C6 G5 A5 G5 E5 - D5 F5 A5 F5 G5 F5 E5 D5 C5 E5 D5 B4 C5 - - .',
-    bass: 'C3 . G3 . F3 . G3 . C3 . E3 . F3 . G3 . D3 . A3 . G3 . B2 . C3 . G2 . C3 . . .',
-    drum: 'k . h . s . h . k . h . s . h .' },
-  level2: { bpm: 150, loop: true,
-    lead: 'A4 C5 E5 C5 D5 F5 E5 - C5 E5 A5 E5 G5 E5 D5 - F5 E5 D5 C5 B4 C5 D5 E5 A4 - C5 B4 A4 - - .',
-    bass: 'A2 . E3 . D3 . E3 . A2 . C3 . G2 . G3 . F2 . C3 . G2 . D3 . A2 . E3 . A2 . . .',
-    drum: 'k h h k s h k h k h h k s h s s' },
-  level3: { bpm: 120, loop: true,
-    lead: 'D5 - F5 - A5 - G#5 - A5 - F5 - D5 - - . C5 - E5 - G5 - F5 - E5 - C#5 - D5 - - .',
-    bass: 'D2 D3 D2 D3 D2 D3 D2 D3 A#1 A#2 A#1 A#2 A1 A2 A1 A2',
-    drum: 'k . . h s . . h' },
-  clue: { bpm: 160, loop: false, lead: 'C5 E5 G5 C6 - G5 C6 - - - . .', bass: 'C3 . . . G2 . . . C3 - - .', drum: '' },
-  gameover: { bpm: 100, loop: false, lead: 'G4 - F#4 - F4 - E4 - - - . .', bass: 'C3 - B2 - A#2 - A2 - - - . .', drum: '' },
-  party: { bpm: 160, loop: true,
-    lead: 'C5 E5 G5 C6 G5 E5 C5 E5 F5 A5 C6 A5 G5 - - . E5 G5 C6 E5 D5 F5 B5 D5 C5 E5 G5 C6 C6 - - .',
-    bass: 'C3 G3 C3 G3 F3 C4 F3 C4 C3 G3 C3 G3 G2 D3 G2 D3',
-    drum: 'k h s h k h s h' },
 };
 for (const k in TRACKS) {
   const t = TRACKS[k];
   t.chans = [
-    { type: 'square', v: 0.1, ev: parse(t.lead) },
-    { type: 'triangle', v: 0.28, ev: parse(t.bass) },
+    { type: 'square', v: 0.08, ev: parse(t.lead) },
+    { type: 'triangle', v: 0.3, ev: parse(t.bass) },
     { drum: true, ev: parse(t.drum) },
   ];
   t.len = Math.max(...t.chans.map(c => c.ev.length));
@@ -198,12 +241,23 @@ function initAudio() {
   master = ac.createGain(); master.gain.value = muted ? 0 : 0.5; master.connect(ac.destination);
   musicBus = ac.createGain(); musicBus.gain.value = 0.5; musicBus.connect(master);
   sfxBus = ac.createGain(); sfxBus.gain.value = 0.8; sfxBus.connect(master);
-  noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+  // echo on the music for a moody, cavernous sound
+  const delay = ac.createDelay(), fb = ac.createGain(), wet = ac.createGain();
+  delay.delayTime.value = 0.32; fb.gain.value = 0.3; wet.gain.value = 0.35;
+  musicBus.connect(delay); delay.connect(fb); fb.connect(delay); delay.connect(wet); wet.connect(master);
+  noiseBuf = ac.createBuffer(1, ac.sampleRate * 3, ac.sampleRate);
   const d = noiseBuf.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  // rain: looping filtered noise
+  const rs = ac.createBufferSource(), rf = ac.createBiquadFilter();
+  rs.buffer = noiseBuf; rs.loop = true; rf.type = 'bandpass'; rf.frequency.value = 2500;
+  rainGain = ac.createGain(); rainGain.gain.value = 0;
+  rs.connect(rf); rf.connect(rainGain); rainGain.connect(master); rs.start();
   setInterval(schedule, 25);
+  setRain(wantRain);
   playMusic(wantTrack);
 }
+function setRain(v) { wantRain = v; if (rainGain) rainGain.gain.value = [0, 0.05, 0.09][v]; }
 function tone(f, t, d, type, v, bus, f2) {
   const o = ac.createOscillator(), g = ac.createGain();
   o.type = type; o.frequency.setValueAtTime(f, t);
@@ -215,12 +269,12 @@ function noise(t, d, v, ftype, f, bus) {
   const s = ac.createBufferSource(), fl = ac.createBiquadFilter(), g = ac.createGain();
   s.buffer = noiseBuf; fl.type = ftype; fl.frequency.value = f;
   g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.001, t + d);
-  s.connect(fl); fl.connect(g); g.connect(bus); s.start(t); s.stop(t + d + 0.05);
+  s.connect(fl); fl.connect(g); g.connect(bus); s.start(t, Math.random()); s.stop(t + d + 0.05);
 }
 function drum(k, t) {
-  if (k === 'k') tone(150, t, 0.12, 'sine', 0.8, musicBus, 40);
-  if (k === 's') noise(t, 0.12, 0.35, 'highpass', 1500, musicBus);
-  if (k === 'h') noise(t, 0.04, 0.15, 'highpass', 7000, musicBus);
+  if (k === 'k') tone(130, t, 0.14, 'sine', 0.9, musicBus, 35);
+  if (k === 's') noise(t, 0.14, 0.35, 'highpass', 1200, musicBus);
+  if (k === 'h') noise(t, 0.04, 0.12, 'highpass', 7000, musicBus);
 }
 function playMusic(name) {
   wantTrack = name;
@@ -244,29 +298,45 @@ function schedule() {
   }
 }
 const SFX = {
-  chop: t => noise(t, 0.06, 0.25, 'bandpass', 1800, sfxBus),
-  creak: t => tone(260, t, 0.45, 'sawtooth', 0.12, sfxBus, 90),
-  crash: t => { noise(t, 0.6, 0.7, 'lowpass', 500, sfxBus); tone(110, t, 0.35, 'square', 0.25, sfxBus, 35); },
-  hit: t => { tone(700, t, 0.12, 'square', 0.25, sfxBus, 300); tone(300, t + 0.12, 0.2, 'square', 0.25, sfxBus, 120); },
-  whoosh: t => noise(t, 0.3, 0.15, 'bandpass', 900, sfxBus),
+  chop: t => noise(t, 0.06, 0.22, 'bandpass', 1500, sfxBus),
+  creak: t => tone(220, t, 0.5, 'sawtooth', 0.1, sfxBus, 70),
+  crash: t => { noise(t, 0.8, 0.8, 'lowpass', 400, sfxBus); tone(90, t, 0.4, 'square', 0.25, sfxBus, 30); },
+  hit: t => { tone(500, t, 0.1, 'square', 0.25, sfxBus, 200); noise(t, 0.15, 0.3, 'lowpass', 900, sfxBus); },
+  whoosh: t => noise(t, 0.3, 0.12, 'bandpass', 800, sfxBus),
   meow: t => { tone(520, t, 0.14, 'square', 0.12, sfxBus, 880); tone(880, t + 0.14, 0.32, 'square', 0.12, sfxBus, 420); },
-  start: t => [523, 659, 784, 1047].forEach((f, i) => tone(f, t + i * 0.07, 0.1, 'square', 0.15, sfxBus)),
+  start: t => [330, 392, 494, 659].forEach((f, i) => tone(f, t + i * 0.08, 0.12, 'square', 0.12, sfxBus)),
+  jump: t => tone(260, t, 0.18, 'square', 0.12, sfxBus, 620),
+  land: t => noise(t, 0.08, 0.2, 'lowpass', 300, sfxBus),
+  squirt: t => noise(t, 0.07, 0.1, 'highpass', 2500, sfxBus),
+  splash: t => noise(t, 0.2, 0.2, 'bandpass', 1100, sfxBus),
+  soak: t => { tone(900, t, 0.1, 'square', 0.12, sfxBus, 1500); tone(1400, t + 0.1, 0.25, 'square', 0.12, sfxBus, 500); },
+  pickup: t => [523, 784, 1047, 1568].forEach((f, i) => tone(f, t + i * 0.06, 0.12, 'square', 0.12, sfxBus)),
+  thunder: t => { noise(t, 2.2, 0.9, 'lowpass', 180, sfxBus); noise(t, 0.3, 0.5, 'lowpass', 1200, sfxBus); },
+  rumble: t => tone(70, t, 0.5, 'triangle', 0.4, sfxBus, 50),
+  boom: t => { noise(t, 0.5, 0.5, 'lowpass', 700, sfxBus); noise(t + 0.15, 0.4, 0.15, 'highpass', 4000, sfxBus); },
 };
-function sfx(n) { if (ac) SFX[n](ac.currentTime); }
+function sfx(n, delay = 0) { if (ac) SFX[n](ac.currentTime + delay); }
 function toggleMute() { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.5; }
 
 // ---------- game state
+const JUMP = 0.55, AMMO = 30;
 let state = 'title', stateT = 0, time = 0, paused = false;
-let lvlIdx = 0, lv = LEVELS[0], player, hazards = [], trees = [], parts = [];
-let camY = 0, spawnT = 0, shake = 0, banner = 0, meowT = 0, heartT = 0;
+let lvlIdx = 0, lv = LEVELS[2], player = null, hazards = [], trees = [], parts = [], shots = [];
+let camY = 0, spawnT = 0, shake = 0, banner = 0, meowT = 0, flash = 0, lightT = 3, boomT = 0;
+let hasGun = false, gunPick = null, ammo = AMMO, fireCD = 0, gunIdle = 0, score = 0, toastLines = null, toastT = 0;
+let eyes = [];
+const drops = Array.from({ length: 140 }, () => ({ x: rnd(0, W + 60), y: rnd(0, H), s: rnd(220, 320) }));
+const mist = Array.from({ length: 6 }, () => ({ x: rnd(0, W), y: rnd(0, H), r: rnd(40, 70), vx: rnd(4, 10) }));
 
 function setState(s) { state = s; stateT = 0; }
+function toast(lines) { toastLines = lines; toastT = 2.8; }
 
 function startLevel(i) {
   lvlIdx = i; lv = LEVELS[i];
-  player = { x: 123, y: lv.len - 30, w: 10, h: 10, hearts: 3, inv: 0, face: 1, walk: 0, moving: false };
-  hazards = []; parts = []; trees = [];
-  spawnT = 2.5; banner = 2.5; paused = false;
+  player = { x: 123, y: lv.len - 30, w: 10, h: 10, hearts: 3, inv: 0, face: 1, fx: 0, fy: -1, walk: 0, moving: false, jt: 0, z: 0 };
+  hazards = []; parts = []; trees = []; shots = [];
+  spawnT = 2.5; banner = 2.5; paused = false; ammo = AMMO; toastT = 0;
+  gunPick = hasGun ? null : { x: 122, y: lv.len - 380, w: 12, h: 10 };
   for (let y = lv.len - 140; y > 140; y -= 52) {
     const n = Math.random() < 0.25 ? 0 : Math.random() < 0.6 ? 1 : 2;
     let last = -99;
@@ -274,62 +344,97 @@ function startLevel(i) {
       let x = rnd(46, 206);
       if (Math.abs(x - last) < 44) x = x < 126 ? x + 50 : x - 50;
       last = x;
-      trees.push({ x: Math.round(x), y: Math.round(y + rnd(-10, 10)) });
+      const ty = Math.round(y + rnd(-10, 10));
+      if (gunPick && Math.abs(ty - gunPick.y) < 30) continue;
+      trees.push({ x: Math.round(x), y: ty, v: Math.random() });
     }
   }
   setState('play');
+  setRain(lv.rain);
   playMusic(lv.music);
   sfx('start');
 }
 
+// ---------- collision
 const treeBox = t => ({ x: t.x - 5, y: t.y - 3, w: 10, h: 12 });
-function fellRect(h) {
-  const th = h.thick + 4;
-  return h.side < 0 ? { x: 32, y: h.y - th / 2, w: h.ext, h: th } : { x: 224 - h.ext, y: h.y - th / 2, w: h.ext, h: th };
+function segDist(px, py, h) {
+  const ex = h.dx * h.ext, ey = h.dy * h.ext, l2 = ex * ex + ey * ey || 1;
+  const t = clamp(((px - h.bx) * ex + (py - h.by) * ey) / l2, 0, 1);
+  return Math.hypot(px - h.bx - ex * t, py - h.by - ey * t);
 }
-function solids() {
-  const s = trees.map(treeBox);
-  for (const h of hazards) if (h.kind === 'tree' && h.landed) s.push(fellRect(h));
-  return s;
+function blockers(b) {
+  const out = [];
+  for (const t of trees) if (overlap(b, treeBox(t))) out.push(t);
+  if (player.z < 4) for (const h of hazards) if (h.kind === 'tree' && h.landed && segDist(b.x + 5, b.y + 5, h) < h.thick / 2 + 4) out.push(h);
+  return out;
 }
-function move(o, mx, my) {
-  const before = { x: o.x, y: o.y, w: o.w, h: o.h };
-  o.x += mx; o.y += my;
-  if (solids().some(s => overlap(o, s) && !overlap(before, s))) { o.x -= mx; o.y -= my; }
+function move(mx, my) {
+  const before = blockers(player);
+  player.x += mx; player.y += my;
+  if (blockers(player).some(o => !before.includes(o))) { player.x -= mx; player.y -= my; }
 }
 function hurt() {
   if (player.inv > 0) return;
-  player.hearts--; player.inv = 1.5; shake = 0.25; sfx('hit');
+  player.hearts--; player.inv = 1.5; shake = 0.3; sfx('hit');
+  burst(player.x + 5, player.y + 4, 8, ['#8a1414', '#5a0a0a'], 50);
   if (player.hearts <= 0) { setState('dead'); playMusic('gameover'); }
 }
-function burst(x, y, n, colors, speed = 40, g = 60) {
-  for (let i = 0; i < n; i++) parts.push({ x, y, vx: rnd(-speed, speed), vy: rnd(-speed, speed / 2), g, life: rnd(0.4, 0.9), c: pick(colors), sz: 1 });
+function burst(x, y, n, colors, speed = 40, g = 60, life = 0.9) {
+  for (let i = 0; i < n; i++) parts.push({ x, y, vx: rnd(-speed, speed), vy: rnd(-speed, speed / 2), g, life: rnd(life * 0.4, life), c: pick(colors), sz: 1 });
+}
+function beaverBox(h) {
+  if (h.kind === 'tree') return h.gone ? null : { x: h.side < 0 ? 8 : 234, y: h.y + 2, w: 14, h: 13 };
+  if (h.kind === 'run') return { x: h.x, y: h.y - 3, w: 14, h: 13 };
+  if (h.kind === 'roll') return h.gone ? null : { x: h.x, y: h.y - 13, w: h.w, h: h.h + 13 };
+  return null;
+}
+function soak(h) {
+  const b = beaverBox(h);
+  score++; sfx('soak');
+  hazards.push({ kind: 'flee', type: h.kind === 'tree' ? h.type : h.kind, x: b.x, y: b.y, vx: (b.x + 7 < 128 ? -1 : 1) * rnd(60, 90),
+    vy: rnd(-20, 30), t: 1.6, say: { text: pick(OUCH), t: 1.2 } });
+  if (h.kind === 'tree') { h.gone = true; if (h.t < h.gnaw) h.dead = true; }
+  if (h.kind === 'run') h.dead = true;
+  if (h.kind === 'roll') h.gone = true;
 }
 
 function spawn(type) {
   if (type === 'roll') {
     if (camY < 80) return;
-    hazards.push({ kind: 'roll', x: rnd(40, 172), y: camY - 14, w: 44, h: 10, vy: 55 + lvlIdx * 8, spin: 0 });
+    hazards.push({ kind: 'roll', x: rnd(40, 172), y: camY - 14, w: 44, h: 10, base: 55 + lvlIdx * 8, vy: 0, t: 0,
+      f: rnd(1.5, 3), ph: rnd(0, 6), surge: 0, fade: 2, spin: 0 });
     sfx('whoosh');
     return;
   }
   const lo = Math.max(camY + 24, 90), hi = player.y - 48;
   if (hi - lo < 10) return;
   const y = Math.round(rnd(lo, hi));
-  if (hazards.some(h => h.kind === 'tree' && Math.abs(h.y - y) < 26)) return;
+  if (hazards.some(h => h.kind === 'tree' && Math.abs(h.y - y) < 30)) return;
   const side = Math.random() < 0.5 ? -1 : 1;
   if (type === 'run') {
-    hazards.push({ kind: 'run', x: side < 0 ? 18 : 224, y, w: 14, h: 10, vx: -side * (85 + lvlIdx * 15) });
+    const sp = 80 + lvlIdx * 15;
+    hazards.push({ kind: 'run', x: side < 0 ? 18 : 224, y, w: 14, h: 10, vx: -side * sp, vy: 0, turn: 0.6, life: rnd(4, 7) });
     sfx('whoosh');
     return;
   }
   const jack = type === 'jack';
-  hazards.push({ kind: 'tree', type, side, y, t: 0, gnaw: jack ? 0.8 : 1.3, len: jack ? rnd(120, 160) : rnd(85, 130),
-    thick: jack ? 10 : 7, ext: 0, landed: false, life: 5 });
+  const a = Math.random() < lv.diag ? rnd(0.25, 0.6) * (Math.random() < 0.5 ? -1 : 1) : rnd(-0.08, 0.08);
+  const h = { kind: 'tree', type, side, y, bx: side < 0 ? 30 : 226, by: y, dx: Math.cos(a) * -side, dy: Math.sin(a), t: 0,
+    gnaw: jack ? 0.8 : 1.3, len: jack ? rnd(120, 160) : rnd(85, 130), thick: jack ? 9 : 6, ext: 0, landed: false, life: 5 };
+  if (Math.random() < 0.35) h.say = { text: pick(TAUNTS), t: 1.4 };
+  hazards.push(h);
 }
 
+function fire() {
+  fireCD = 0.09; ammo--; gunIdle = 0;
+  shots.push({ x: player.x + 5 + player.fx * 8, y: player.y + 3 + player.fy * 8 - player.z,
+    vx: player.fx * 210 + rnd(-12, 12), vy: player.fy * 210 + rnd(-12, 12), life: 0.5 });
+  sfx('squirt');
+}
+function splash(x, y) { burst(x, y, 6, ['#8ac0ff', '#d0e8ff', '#4a8ad0'], 40, 80, 0.5); sfx('splash'); }
+
 function updatePlay(dt) {
-  banner -= dt; player.inv -= dt; meowT -= dt;
+  banner -= dt; toastT -= dt; player.inv -= dt; meowT -= dt; fireCD -= dt;
   let dx = (key.right ? 1 : 0) - (key.left ? 1 : 0), dy = (key.down ? 1 : 0) - (key.up ? 1 : 0);
   if (pointer.down) {
     const px = pointer.x - (player.x + 5), py = pointer.y + camY - (player.y + 5);
@@ -338,262 +443,467 @@ function updatePlay(dt) {
   const m = Math.hypot(dx, dy);
   player.moving = m > 0;
   if (m) {
-    dx /= m; dy /= m; player.walk += dt;
+    dx /= m; dy /= m; player.walk += dt; player.fx = dx; player.fy = dy;
     if (dx) player.face = dx > 0 ? 1 : -1;
-    move(player, dx * 72 * dt, 0);
-    move(player, 0, dy * 72 * dt);
+    const sp = player.z > 0 ? 82 : 72;
+    move(dx * sp * dt, 0);
+    move(0, dy * sp * dt);
   }
   player.x = clamp(player.x, 34, 212);
   player.y = clamp(player.y, 4, lv.len - 14);
+  if (player.jt > 0) {
+    player.jt -= dt;
+    player.z = Math.sin(Math.PI * (1 - Math.max(0, player.jt) / JUMP)) * 12;
+    if (player.jt <= 0) { player.z = 0; sfx('land'); }
+  }
   camY = clamp(player.y - 170, 0, lv.len - H);
+
+  // water gun
+  if (hasGun) {
+    if (key.fire && fireCD <= 0 && ammo >= 1) fire();
+    if (!key.fire && (gunIdle += dt) > 0.4) ammo = Math.min(AMMO, ammo + dt * 8);
+  } else if (gunPick && overlap(player, gunPick)) {
+    hasGun = true; gunPick = null; sfx('pickup');
+    toast(['SUPER SOAKER 3000.', 'HOLD X TO SHOOT.']);
+  }
+  for (const s of shots) {
+    s.x += s.vx * dt; s.y += s.vy * dt; s.life -= dt;
+    if (Math.random() < 0.6) parts.push({ x: s.x, y: s.y, vx: 0, vy: 10, g: 0, life: 0.15, c: 'rgba(140,190,255,0.7)', sz: 1 });
+    const sb = { x: s.x - 2, y: s.y - 2, w: 4, h: 4 };
+    if (trees.some(t => overlap(sb, treeBox(t)))) { splash(s.x, s.y); s.life = 0; continue; }
+    for (const h of hazards) {
+      const b = beaverBox(h);
+      if (b && !h.dead && overlap(sb, b)) { soak(h); splash(s.x, s.y); s.life = 0; break; }
+    }
+  }
+  shots = shots.filter(s => s.life > 0);
 
   spawnT -= dt;
   if (spawnT <= 0) { spawnT = lv.every * rnd(0.7, 1.3); spawn(pick(lv.pool)); }
 
+  const pcx = player.x + 5, pcy = player.y + 5, grounded = player.z < 4;
   for (const h of hazards) {
+    if (h.say) h.say.t -= dt;
     if (h.kind === 'tree') {
       h.t += dt;
-      const baseX = h.side < 0 ? 26 : 230;
       if (h.t < h.gnaw) {
-        if (Math.random() < dt * 14) burst(baseX, h.y + 6, 1, ['#d8b070', '#b08850'], 30);
+        if (Math.random() < dt * 14) burst(h.bx, h.y + 4, 1, ['#c8a060', '#8a6a3a'], 30);
         if (Math.random() < dt * 7) sfx('chop');
       } else if (!h.landed) {
         if (!h.creaked) { h.creaked = true; sfx('creak'); }
-        h.ext = Math.min(h.len, h.ext + dt * h.len / 0.35);
-        const r = fellRect(h);
-        if (overlap(player, r)) {
+        h.ext = Math.min(h.len, h.ext + dt * h.len / 0.4);
+        const ex = h.bx + h.dx * h.ext, ey = h.by + h.dy * h.ext;
+        if (grounded && (segDist(pcx, pcy, h) < h.thick / 2 + 5 || Math.hypot(pcx - ex, pcy - ey) < 12)) {
           hurt();
-          player.y = player.y + 5 < h.y ? r.y - player.h - 1 : r.y + r.h + 1;
+          // shove the player clear of the trunk
+          const t = clamp(((pcx - h.bx) * h.dx + (pcy - h.by) * h.dy) / h.ext, 0, 1);
+          const cx = h.bx + h.dx * h.ext * t, cy = h.by + h.dy * h.ext * t;
+          let nx = pcx - cx, ny = pcy - cy, nl = Math.hypot(nx, ny);
+          if (nl < 0.5) { nx = -h.dy; ny = h.dx; nl = 1; }
+          player.x = cx + nx / nl * (h.thick / 2 + 8) - 5;
+          player.y = cy + ny / nl * (h.thick / 2 + 8) - 5;
         }
         if (h.ext >= h.len) {
           h.landed = true; shake = 0.3; sfx('crash');
-          for (let i = 0; i < 6; i++) burst(r.x + rnd(0, r.w), h.y, 3, lv.tree, 50);
+          for (let i = 0; i < 8; i++) { const s = rnd(0, h.len); burst(h.bx + h.dx * s, h.by + h.dy * s, 3, lv.tree, 50); }
         }
       } else if ((h.life -= dt) <= 0) h.dead = true;
     } else if (h.kind === 'run') {
-      h.x += h.vx * dt;
-      if (overlap(player, h)) hurt();
-      if (h.x < -20 || h.x > 276) h.dead = true;
+      // Speedy: zig-zags, doubles back, lunges at you, then bolts
+      h.turn -= dt;
+      if (!h.leaving) {
+        if (h.turn <= 0) {
+          h.turn = rnd(0.35, 0.9);
+          const sp = 80 + lvlIdx * 15;
+          if (Math.random() < 0.3) { h.vx = Math.sign(player.x - h.x || 1) * sp * 1.3; h.vy = Math.sign(player.y - h.y) * 35; }
+          else { h.vx = (Math.random() < 0.5 ? -1 : 1) * sp; h.vy = rnd(-45, 45); }
+        }
+        if ((h.x < 34 && h.vx < 0) || (h.x > 208 && h.vx > 0)) h.vx *= -1;
+        if ((h.life -= dt) <= 0) { h.leaving = true; h.vx = (h.x < 128 ? -1 : 1) * 110; h.vy = 0; }
+      }
+      h.x += h.vx * dt; h.y += h.vy * dt;
+      if (Math.random() < dt * 15) parts.push({ x: h.x + 7, y: h.y + 9, vx: 0, vy: -5, g: 0, life: 0.3, c: 'rgba(120,100,70,0.6)', sz: 2 });
+      if (grounded && overlap(player, h)) hurt();
+      if (h.x < -24 || h.x > 280 || h.y > camY + H + 30 || h.y < camY - 60) h.dead = true;
     } else if (h.kind === 'roll') {
-      h.y += h.vy * dt; h.spin += dt;
-      if (overlap(player, h)) hurt();
+      // Roller: speeds up and slows down, with sudden surges
+      h.t += dt;
+      if (h.gone) { h.vy = Math.max(0, h.vy - 90 * dt); if ((h.fade -= dt) <= 0) h.dead = true; }
+      else {
+        if (h.surge > 0) h.surge -= dt;
+        else if (Math.random() < dt * 0.5) {
+          h.surge = rnd(0.5, 1); sfx('rumble');
+          if (Math.random() < 0.4) h.say = { text: pick(['FASTER!', 'ROLL IT!', 'INCOMING.']), t: 1 };
+        }
+        h.vy = h.base * (0.45 + 0.75 * (0.5 + 0.5 * Math.sin(h.t * h.f + h.ph))) * (h.surge > 0 ? 2 : 1);
+        if (grounded && overlap(player, h)) hurt();
+        if (h.surge > 0 && Math.random() < dt * 25) parts.push({ x: h.x + rnd(0, h.w), y: h.y, vx: rnd(-10, 10), vy: -15, g: 0, life: 0.4, c: 'rgba(110,90,60,0.6)', sz: 2 });
+      }
+      h.y += h.vy * dt; h.spin += h.vy * dt;
       if (h.y > camY + H + 20) h.dead = true;
+    } else if (h.kind === 'flee') {
+      h.x += h.vx * dt; h.y += h.vy * dt;
+      if (Math.random() < dt * 20) parts.push({ x: h.x + rnd(2, 12), y: h.y + 12, vx: 0, vy: 20, g: 40, life: 0.4, c: '#6aa0e0', sz: 1 });
+      if ((h.t -= dt) <= 0) h.dead = true;
     }
   }
   hazards = hazards.filter(h => !h.dead);
 
-  if (lvlIdx === 2 && player.y < 140 && meowT <= 0) { sfx('meow'); meowT = 2.5; }
+  if (lvlIdx === 2 && player.y < 160 && meowT <= 0) { sfx('meow'); meowT = 2.5; }
   if (player.y < 52 && state === 'play') {
     if (lvlIdx < 2) { setState('clue'); playMusic('clue'); }
-    else { setState('party'); lv = LEVELS[0]; parts = []; playMusic('party'); sfx('meow'); }
+    else { setState('party'); lv = LEVELS[0]; parts = []; setRain(0); playMusic('party'); sfx('meow'); }
   }
 }
 
-const CONFETTI = ['#ff4060', '#40c0ff', '#ffe040', '#60e060', '#e070ff', '#ffffff'];
+const FIRE_COLORS = ['#ff4060', '#40c0ff', '#ffe040', '#60e060', '#e070ff', '#ffffff', '#ff9030'];
 function updateParty(dt) {
-  if (Math.random() < dt * 30) parts.push({ x: rnd(0, W), y: -4, vx: rnd(-15, 15), vy: rnd(25, 50), g: 0, life: 6, c: pick(CONFETTI), sz: 2 });
-  if (Math.random() < dt * 4) for (const [x, y] of [[97, 144], [169, 146], [157, 164]]) parts.push({ x, y, vx: rnd(-3, 3), vy: -12, g: 0, life: 1.2, c: 'rgba(255,255,255,0.6)', sz: 1 });
-  if ((heartT -= dt) <= 0) { heartT = 1; parts.push({ x: 156, y: 106, vx: rnd(-6, 6), vy: -18, g: 0, life: 2, heart: true }); }
-  if ((meowT -= dt) <= 0) { meowT = 3.5; sfx('meow'); }
+  if ((boomT -= dt) <= 0) {
+    boomT = rnd(0.5, 1.1);
+    const x = rnd(50, 206), y = rnd(14, 60), cs = [pick(FIRE_COLORS), pick(FIRE_COLORS)];
+    for (let i = 0; i < 36; i++) {
+      const a = i / 36 * Math.PI * 2, sp = rnd(30, 55);
+      parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, g: 25, life: rnd(0.9, 1.4), c: pick(cs), sz: 1, glow: true });
+    }
+    sfx('boom');
+  }
+  if (Math.random() < dt * 4) for (const [x, y] of [[97, 144], [169, 146], [157, 164]]) parts.push({ x, y, vx: rnd(-3, 3), vy: -12, g: 0, life: 1.2, c: 'rgba(220,220,220,0.5)', sz: 1 });
+  if ((meowT -= dt) <= 0) { meowT = 3.5; sfx('meow'); parts.push({ x: 156, y: 106, vx: rnd(-6, 6), vy: -18, g: 0, life: 2, heart: true }); }
 }
 
 function update(dt) {
-  time += dt; stateT += dt; shake -= dt;
+  time += dt; stateT += dt; shake -= dt; flash -= dt;
   if (paused) return;
   if (state === 'play') updatePlay(dt);
   if (state === 'party') updateParty(dt);
+  if ((state === 'title' || lv.lightning) && state !== 'party' && (lightT -= dt) <= 0) {
+    lightT = rnd(5, 11); flash = 0.18; sfx('thunder', 0.4);
+  }
   for (const p of parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += p.g * dt; p.life -= dt; }
   parts = parts.filter(p => p.life > 0);
+  for (const d of drops) { d.y += d.s * dt; d.x -= d.s * 0.25 * dt; if (d.y > H) { d.y = -4; d.x = rnd(0, W + 60); } }
+  for (const m of mist) { m.x += m.vx * dt; if (m.x - m.r > W) m.x = -m.r; }
 }
 
 // ---------- drawing
-function drawTree(cx, cy) { rect(cx - 2, cy + 5, 4, 5, '#5a3a1a'); draw(lv.treeImg, cx - 9, cy - 9); }
+function drawTree(cx, cy, v) {
+  rect(cx - 2, cy + 6, 4, 6, '#2a1a0e');
+  draw(v < lv.dead ? lv.deadImg : lv.treeImgs[Math.floor(v * 30) % 3], cx - 12, cy - 12);
+}
+function drawPoster(x, y) {
+  rect(x, y, 9, 11, '#cfc6ae'); rect(x + 4, y - 1, 1, 1, '#a01010');
+  rect(x + 1, y + 1, 7, 1, '#111');
+  rect(x + 2, y + 3, 5, 4, '#c87020'); rect(x + 3, y + 4, 1, 1, '#111'); rect(x + 5, y + 4, 1, 1, '#111');
+  rect(x + 1, y + 8, 7, 1, '#555'); rect(x + 1, y + 9, 5, 1, '#555');
+}
 function drawGround(top) {
   rect(0, top, W, H, lv.ground);
+  // worn dirt trail
+  for (let y = Math.floor(top / 4) * 4; y < top + H + 4; y += 4) {
+    const cx = 128 + Math.sin(y / 110) * 34 + Math.sin(y / 37) * 6, w = 30 + Math.sin(y / 53) * 8 + hash(y, 7) * 4;
+    rect(cx - w / 2, y, w, 4, lv.dirt);
+  }
   const r0 = Math.floor(top / 16);
   for (let cy = r0; cy < r0 + 17; cy++) for (let cx = 0; cx < 16; cx++) {
     const r = hash(cx + 99, cy), x = cx * 16 + Math.floor(r * 12), y = cy * 16 + Math.floor(hash(cy, cx) * 12);
-    if (r < 0.4) { rect(x, y, 1, 2, lv.tuft); rect(x + 2, y, 1, 2, lv.tuft); rect(x + 1, y + 1, 1, 2, lv.tuft); }
-    else if (r > 0.94) rect(x, y, 2, 2, lv.flower);
+    if (r < 0.3) { rect(x, y, 1, 2, lv.tuft); rect(x + 2, y, 1, 2, lv.tuft); rect(x + 1, y - 1, 1, 3, lv.tuft); }
+    else if (r < 0.42) rect(x, y, 4, 3, lv.ground2);
+    else if (r < 0.5) rect(x, y, 1, 1, lv.fleck);
+    else if (r > 0.97) { rect(x, y, 3, 2, '#5a524a'); rect(x, y, 2, 1, '#7a7268'); }
+    else if (lv.rain && r > 0.93) { rect(x - 3, y, 8, 3, '#18222c'); rect(x - 1, y, 2, 1, '#3a4a5a'); }
   }
 }
 function drawBorder(top) {
-  for (const [col, off] of [[6, 0], [22, 6], [234, 3], [250, 9]]) {
-    const i0 = Math.floor((top - off - 20) / 12);
-    for (let i = i0; i < i0 + 24; i++) drawTree(col + Math.round(hash(col, i) * 4 - 2), i * 12 + off);
+  for (const [col, off] of [[4, 0], [20, 6], [236, 3], [252, 9]]) {
+    const i0 = Math.floor((top - off - 24) / 12);
+    for (let i = i0; i < i0 + 25; i++) drawTree(col + Math.round(hash(col, i) * 4 - 2), i * 12 + off, hash(i, col));
   }
+  // missing-cat posters nailed to the trees
+  for (let y = Math.floor(top / 260) * 260; y < top + H + 20; y += 260) drawPoster(hash(y, 3) < 0.5 ? 25 : 222, y + 140);
 }
-function drawParticles() {
+function drawBeaver(type, x, y, flip) {
+  draw(beaverImg[type], x, y, flip);
+  eyes.push([Math.round(x), Math.round(y)]);
+}
+function drawParticles(glowOnly) {
   for (const p of parts) {
+    if (!!p.glow !== !!glowOnly) continue;
     if (p.heart) draw(heartImg, p.x, p.y);
     else rect(p.x, p.y, p.sz, p.sz, p.c);
   }
 }
 function drawPlayer() {
+  const z = Math.round(player.z);
+  rect(player.x, player.y + 9, 10, 2, `rgba(0,0,0,${0.45 - z * 0.02})`);
   if (player.inv > 0 && Math.floor(player.inv * 12) % 2) return;
-  draw(playerImg[player.moving ? Math.floor(player.walk * 8) % 2 : 0], player.x - 1, player.y - 2, player.face < 0);
+  const img = playerImg[player.moving ? Math.floor(player.walk * 8) % 2 : 0];
+  draw(img, player.x - 2, player.y - 5 - z, player.face < 0);
+  if (hasGun) draw(gunImg, player.face > 0 ? player.x + 5 : player.x - 5, player.y + 2 - z, player.face < 0);
 }
 function drawGoal() {
+  const prints = 'rgba(20,10,5,0.55)';
   if (lvlIdx < 2) for (let i = 0; i < 5; i++) {
     const x = 125 + (i % 2 ? 6 : 0), y = 2 + i * 8;
-    rect(x, y, 3, 2, 'rgba(40,20,10,0.5)'); rect(x - 1, y - 2, 1, 1, 'rgba(40,20,10,0.5)'); rect(x + 3, y - 2, 1, 1, 'rgba(40,20,10,0.5)');
+    rect(x, y, 3, 2, prints); rect(x - 1, y - 2, 1, 1, prints); rect(x + 3, y - 2, 1, 1, prints);
   }
-  if (lvlIdx === 0) draw(bellImg, 125, 40 + Math.round(Math.sin(time * 4)));
-  if (lvlIdx === 1) for (let i = 0; i < 8; i++) rect(124 + hash(i, 1) * 8, 40 + hash(i, 2) * 6, 2, 1, i % 2 ? '#f09030' : '#c06010');
+  if (lvlIdx === 0) draw(bellImg, 124, 40 + Math.round(Math.sin(time * 4)));
+  if (lvlIdx === 1) {
+    rect(118, 44, 20, 3, '#5a5a5a'); for (let x = 118; x < 138; x += 3) rect(x, 41, 1, 3, '#8a8a8a');
+    for (let i = 0; i < 8; i++) rect(122 + hash(i, 1) * 12, 38 + hash(i, 2) * 6, 2, 1, i % 2 ? '#e08028' : '#a04c10');
+  }
   if (lvlIdx === 2) {
-    draw(catImg, 122, 30 + (Math.floor(time * 3) % 2));
-    if (Math.floor(time * 2) % 2) draw(heartImg, 134, 20);
+    // the dam: black water behind a wall of chewed logs
+    rect(0, 0, W, 20, '#0a1420');
+    for (let x = 0; x < W; x += 8) rect(x + (Math.floor(time * 2) % 2) * 3, 6 + hash(x, 9) * 8, 3, 1, '#2a3a50');
+    for (let x = -4; x < W; x += 11) { rect(x, 17 + hash(x, 4) * 3, 13, 6, '#3a2414'); rect(x, 18 + hash(x, 4) * 3, 2, 4, '#8a6a40'); }
+    draw(catImg, 121, 29 + (Math.floor(time * 3) % 2));
+    for (let i = 0; i < 5; i++) rect(118 + i * 5, 26, 1, 17, '#7a7a7a');
+    rect(117, 26, 22, 1, '#7a7a7a'); rect(117, 42, 22, 1, '#7a7a7a');
   }
 }
 function drawFelled(h) {
   if (h.landed && h.life < 1 && Math.floor(h.life * 10) % 2) return;
-  const r = fellRect(h);
-  rect(r.x, r.y + 2, r.w, h.thick, '#6a4020');
-  rect(r.x, r.y + 2, r.w, 2, '#8a5a30');
-  for (let x = 6; x < r.w - 4; x += 9) rect(r.x + x, r.y + 4, 1, h.thick - 3, '#4a2a10');
-  if (h.ext > 8) draw(lv.treeImg, (h.side < 0 ? 32 + h.ext : 224 - h.ext) - 9, h.y - 9);
+  const th = h.thick;
+  for (let s = 0; s < h.ext; s++) {
+    const x = h.bx + h.dx * s, y = h.by + h.dy * s;
+    rect(x - th / 2, y - th / 2, th, th, s % 7 === 0 ? '#2a180a' : '#4a2e16');
+  }
+  for (let s = 2; s < h.ext; s += 1) rect(h.bx + h.dx * s - th / 2 + 1, h.by + h.dy * s - th / 2, 1, 2, '#6a4a2a');
+  if (h.ext > 8) draw(lv.treeImgs[0], h.bx + h.dx * h.ext - 12, h.by + h.dy * h.ext - 12);
 }
 function drawGnawers() {
   for (const h of hazards) if (h.kind === 'tree') {
-    const baseX = h.side < 0 ? 26 : 230;
     if (h.t < h.gnaw) {
-      if (h.t > h.gnaw * 0.35 && Math.floor(time * 8) % 2) {
-        const r = fellRect({ ...h, ext: h.len });
-        rect(r.x, r.y, r.w, r.h, 'rgba(255,40,40,0.3)');
+      if (h.t > h.gnaw * 0.3 && Math.floor(time * 8) % 2) {
+        ctx.strokeStyle = 'rgba(200,20,20,0.35)'; ctx.lineWidth = h.thick + 4;
+        ctx.beginPath(); ctx.moveTo(h.bx, h.by); ctx.lineTo(h.bx + h.dx * h.len, h.by + h.dy * h.len); ctx.stroke();
       }
-      drawTree(baseX + (Math.floor(time * 30) % 2 ? 1 : -1), h.y);
+      drawTree(h.bx + (h.side < 0 ? -4 : 4) + (Math.floor(time * 30) % 2 ? 1 : -1), h.y, 0.9);
     }
-    if (!h.landed || h.life > 1) draw(beaverImg[h.type], h.side < 0 ? 6 : 236, h.y + 2 + (Math.floor(time * 10) % 2), h.side > 0);
+    if (!h.gone && (!h.landed || h.life > 1)) drawBeaver(h.type, h.side < 0 ? 7 : 233, h.y + 1 + (Math.floor(time * 10) % 2), h.side > 0);
   }
+}
+const darkCv = canvas(W, H), dg = darkCv.getContext('2d');
+function drawLighting(lights, alpha) {
+  dg.globalCompositeOperation = 'source-over';
+  dg.clearRect(0, 0, W, H);
+  dg.fillStyle = `rgba(4,6,14,${alpha})`; dg.fillRect(0, 0, W, H);
+  dg.globalCompositeOperation = 'destination-out';
+  for (const [x, y, r] of lights) {
+    const g = dg.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    dg.fillStyle = g; dg.beginPath(); dg.arc(x, y, r, 0, 7); dg.fill();
+  }
+  ctx.drawImage(darkCv, 0, 0);
+}
+function drawEyes(offY) {
+  for (const [x, y] of eyes) {
+    const yy = y + 4 - offY;
+    rect(x + 4, yy - 1, 3, 3, 'rgba(255,30,10,0.25)'); rect(x + 9, yy - 1, 3, 3, 'rgba(255,30,10,0.25)');
+    rect(x + 5, yy, 1, 1, '#ff3a20'); rect(x + 10, yy, 1, 1, '#ff3a20');
+  }
+}
+const vignette = canvas(W, H);
+{
+  const g = vignette.getContext('2d'), gr = g.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.85);
+  gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,0.75)');
+  g.fillStyle = gr; g.fillRect(0, 0, W, H);
+}
+function drawAtmosphere(rain) {
+  if (rain) {
+    ctx.fillStyle = 'rgba(150,170,210,0.45)';
+    const n = rain === 1 ? 80 : drops.length;
+    for (let i = 0; i < n; i++) { const d = drops[i]; ctx.fillRect(Math.round(d.x), Math.round(d.y), 1, 3); ctx.fillRect(Math.round(d.x) - 1, Math.round(d.y) + 3, 1, 2); }
+  }
+  if (flash > 0) rect(0, 0, W, H, `rgba(220,230,255,${flash * 3})`);
+  ctx.drawImage(vignette, 0, 0);
+  for (let i = 0; i < 90; i++) rect(Math.random() * W, Math.random() * H, 1, 1, i % 2 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.15)');
 }
 
 function renderPlay() {
+  eyes = [];
   ctx.save();
   const sx = shake > 0 ? rnd(-2, 2) : 0, sy = shake > 0 ? rnd(-2, 2) : 0;
   ctx.translate(Math.round(sx), Math.round(sy - camY));
   drawGround(camY);
   drawGoal();
+  if (gunPick) {
+    disc(ctx, gunPick.x + 6, gunPick.y + 6, 7, '#3a2414'); disc(ctx, gunPick.x + 6, gunPick.y + 6, 4, '#5a3a20');
+    draw(gunImg, gunPick.x + 1, gunPick.y + 1 + Math.round(Math.sin(time * 4)));
+    if (Math.floor(time * 3) % 3 === 0) rect(gunPick.x + 9, gunPick.y + 1, 2, 2, '#fff');
+  }
   for (const h of hazards) if (h.kind === 'tree' && h.landed) drawFelled(h);
-  for (const t of trees) if (t.y > camY - 20 && t.y < camY + H + 20) drawTree(t.x, t.y);
+  for (const t of trees) if (t.y <= player.y + 6 && t.y > camY - 20) drawTree(t.x, t.y, t.v);
   for (const h of hazards) {
-    if (h.kind === 'run') draw(beaverImg.run, h.x, h.y - 3 + (Math.floor(time * 14) % 2), h.vx < 0);
+    if (h.kind === 'run') drawBeaver('run', h.x - 1, h.y - 4 + (Math.floor(time * 14) % 2), h.vx < 0);
+    if (h.kind === 'flee' && (h.t > 0.5 || Math.floor(time * 12) % 2)) drawBeaver(h.type, h.x, h.y + Math.sin(time * 30) * 2, h.vx < 0);
     if (h.kind === 'roll') {
-      draw(beaverImg.roll, h.x + h.w / 2 - 7, h.y - 13 + (Math.floor(time * 10) % 2));
-      rect(h.x, h.y, h.w, h.h, '#6a4020');
-      for (let i = 0; i < 5; i++) rect(h.x + 3 + ((i * 9 + Math.floor(h.spin * 40)) % (h.w - 6)), h.y, 1, h.h, '#4a2a10');
-      rect(h.x, h.y, 3, h.h, '#c09060'); rect(h.x + h.w - 3, h.y, 3, h.h, '#c09060');
+      if (!h.gone) drawBeaver('roll', h.x + h.w / 2 - 8, h.y - 15 + (Math.floor(time * 10) % 2));
+      if (!h.gone || Math.floor(h.fade * 10) % 2) {
+        rect(h.x, h.y, h.w, h.h, '#4a2e16');
+        for (let i = 0; i < 2; i++) rect(h.x + 3, h.y + ((Math.floor(h.spin * 0.6) + i * 5) % h.h), h.w - 6, 1, '#2a180a');
+        rect(h.x, h.y, 3, h.h, '#a08060'); rect(h.x + h.w - 3, h.y, 3, h.h, '#a08060');
+      }
     }
   }
   drawPlayer();
+  for (const t of trees) if (t.y > player.y + 6 && t.y < camY + H + 20) drawTree(t.x, t.y, t.v);
   for (const h of hazards) if (h.kind === 'tree' && !h.landed && h.t >= h.gnaw) drawFelled(h);
   drawBorder(camY);
   drawGnawers();
+  for (const s of shots) { rect(s.x - 1, s.y - 1, 3, 3, '#6aa8ff'); rect(s.x, s.y - 1, 1, 1, '#e0f0ff'); }
   drawParticles();
   ctx.restore();
 
+  // light, weather, film
+  rect(0, 0, W, H, lv.tint);
+  if (lv.mist) for (const m of mist) {
+    const g = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, m.r);
+    g.addColorStop(0, 'rgba(200,200,190,0.10)'); g.addColorStop(1, 'rgba(200,200,190,0)');
+    ctx.fillStyle = g; ctx.fillRect(m.x - m.r, m.y - m.r, m.r * 2, m.r * 2);
+  }
+  const lights = [[player.x + 5, player.y - camY, (lvlIdx === 2 ? 70 : 76) + Math.sin(time * 9) * 2]];
+  if (lvlIdx === 2) lights.push([128, 34 - camY, 34]);
+  if (gunPick) lights.push([gunPick.x + 6, gunPick.y + 5 - camY, 22]);
+  for (const s of shots) lights.push([s.x, s.y - camY, 10]);
+  if (flash <= 0) drawLighting(lights, lv.dark);
+  drawEyes(camY);
+  ctx.save(); ctx.translate(0, -camY);
+  for (const h of hazards) if (h.say && h.say.t > 0) {
+    const b = h.kind === 'flee' ? { x: h.x, y: h.y } : beaverBox(h);
+    if (b) bubble(h.say.text, b.x + 7, b.y - 2);
+  }
+  ctx.restore();
+  drawAtmosphere(lv.rain);
+
   // HUD
-  for (let i = 0; i < 3; i++) draw(i < player.hearts ? heartImg : heartEmpty, 6 + i * 9, 6);
+  for (let i = 0; i < 3; i++) draw(i < player.hearts ? heartImg : heartEmpty, 5 + i * 10, 5);
+  if (hasGun) { rect(6, 15, 42, 5, '#000'); rect(7, 16, Math.round(40 * ammo / AMMO), 3, '#3a8aff'); }
+  if (score) text('SOAKED ' + score, 128, 6, '#8ac0ff');
   const p = clamp(1 - (player.y - 52) / (lv.len - 82), 0, 1);
-  rect(182, 8, 52, 5, '#000'); rect(183, 9, Math.round(50 * p), 3, '#f0c830');
-  draw(catImg, 238, 4);
-  if (muted) text('MUTE', 128, 6, '#aaa');
-  if (banner > 0 && state === 'play') box([['LEVEL ' + (lvlIdx + 1), '#f0c830'], [lv.name]], 100);
-  if (paused) box([['PAUSED'], ['Press P to go on']], 104);
+  rect(182, 8, 52, 5, '#000'); rect(183, 9, Math.round(50 * p), 3, '#a8302a');
+  draw(catImg, 237, 3);
+  if (muted) text('MUTE', 26, 226, '#777');
+  if (banner > 0 && state === 'play') box([['LEVEL ' + (lvlIdx + 1), '#a8302a'], [lv.name]], 100);
+  if (toastT > 0 && state === 'play') box(toastLines.map(l => [l, '#8ac0ff']), 150);
+  if (paused) box([['PAUSED'], ['PRESS P']], 104);
 }
 
 function drawPartyHat(x, y, c) {
-  rect(x + 6, y - 5, 2, 1, '#fff');
-  rect(x + 6, y - 4, 2, 1, c); rect(x + 5, y - 3, 4, 1, c); rect(x + 4, y - 2, 6, 1, c); rect(x + 4, y - 1, 6, 1, c);
+  rect(x + 7, y - 4, 2, 1, '#fff');
+  rect(x + 7, y - 3, 2, 1, c); rect(x + 6, y - 2, 4, 1, c); rect(x + 5, y - 1, 6, 1, c); rect(x + 5, y, 6, 1, c);
 }
 function renderParty() {
+  eyes = [];
   drawGround(0);
   drawBorder(0);
-  // picnic blanket
-  for (let y = 0; y < 8; y++) for (let x = 0; x < 16; x++) rect(64 + x * 8, 120 + y * 8, 8, 8, (x + y) % 2 ? '#c83838' : '#f4ecd8');
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 16; x++) rect(64 + x * 8, 120 + y * 8, 8, 8, (x + y) % 2 ? '#7a1c1c' : '#d4c8a8');
   // cake
-  rect(108, 150, 40, 3, '#ddd');
-  rect(112, 136, 32, 14, '#f4d8a8');
-  rect(112, 142, 32, 2, '#c03050');
-  rect(111, 133, 34, 4, '#ff8fc0');
-  for (const [x, h] of [[114, 2], [122, 3], [134, 2], [140, 3]]) rect(x, 137, 2, h, '#ff8fc0');
-  for (const x of [116, 126, 136]) rect(x, 131, 3, 2, '#e02020');
+  rect(108, 150, 40, 3, '#bbb');
+  rect(112, 136, 32, 14, '#3a2014');
+  rect(112, 142, 32, 2, '#8a1a2a');
+  rect(111, 133, 34, 4, '#e8d8c8');
+  for (const [x, h] of [[114, 2], [122, 3], [134, 2], [140, 3]]) rect(x, 137, 2, h, '#e8d8c8');
+  for (const x of [116, 126, 136]) rect(x, 131, 3, 2, '#b01020');
   for (const x of [118, 127, 136]) {
-    rect(x, 124, 2, 8, '#80c0ff'); rect(x, 126, 2, 1, '#fff'); rect(x, 129, 2, 1, '#fff');
+    rect(x, 124, 2, 8, '#e8e0d0');
     const f = Math.floor(time * 10 + x) % 2;
     rect(x, 120 + f, 2, 3, '#ffd040'); rect(x, 122, 2, 1, '#ff8020');
   }
   // teapot
-  disc(ctx, 84, 152, 8, '#4a7ad0'); disc(ctx, 82, 150, 3, '#8ab0f0');
-  rect(80, 142, 8, 3, '#4a7ad0'); rect(83, 140, 2, 2, '#4a7ad0');
-  rect(92, 148, 4, 2, '#4a7ad0'); rect(95, 145, 2, 3, '#4a7ad0');
-  rect(73, 148, 2, 8, '#4a7ad0'); rect(74, 147, 3, 1, '#4a7ad0'); rect(74, 156, 3, 1, '#4a7ad0');
-  // teacups
+  disc(ctx, 84, 152, 8, '#1c2a4a'); disc(ctx, 82, 150, 3, '#3a5a8a');
+  rect(80, 142, 8, 3, '#1c2a4a'); rect(83, 140, 2, 2, '#c8a030');
+  rect(92, 148, 4, 2, '#1c2a4a'); rect(95, 145, 2, 3, '#1c2a4a');
+  rect(73, 148, 2, 8, '#1c2a4a'); rect(74, 147, 3, 1, '#1c2a4a'); rect(74, 156, 3, 1, '#1c2a4a');
   for (const [x, y] of [[168, 150], [156, 168]]) {
-    rect(x - 5, y + 5, 12, 2, '#eee'); rect(x - 3, y, 8, 6, '#fff'); rect(x - 2, y, 6, 2, '#8a4a20'); rect(x + 5, y + 1, 2, 3, '#fff');
+    rect(x - 5, y + 5, 12, 2, '#ddd'); rect(x - 3, y, 8, 6, '#eee'); rect(x - 2, y, 6, 2, '#6a3a18'); rect(x + 5, y + 1, 2, 3, '#eee');
   }
-  // you and Biscuit
-  draw(playerImg[0], 96, 104);
-  draw(catImg, 150, 110 + (Math.floor(time * 3) % 2));
-  // beavers in party hats
-  [['brown', 30, 196, '#ff4060'], ['jack', 82, 204, '#40c0ff'], ['run', 160, 204, '#ffe040'], ['roll', 212, 196, '#60e060']]
+  draw(playerImg[0], 95, 103);
+  draw(gunImg, 86, 112);
+  draw(catImg, 149, 109 + (Math.floor(time * 3) % 2));
+  // the syndicate, soaked, in party hats
+  [['brown', 34, 126, '#ff4060'], ['jack', 42, 160, '#40c0ff'], ['run', 206, 126, '#ffe040'], ['roll', 198, 160, '#60e060']]
     .forEach(([k, x, y, c], i) => {
-      const by = y - Math.abs(Math.round(Math.sin(time * 6 + i) * 4));
-      draw(beaverImg[k], x, by); drawPartyHat(x, by, c);
+      const by = y - Math.abs(Math.round(Math.sin(time * 3 + i) * 2));
+      drawBeaver(k, x, by, i > 1); drawPartyHat(x, by, c);
+      if (Math.floor(time * 4 + i) % 4 === 0) rect(x + 3 + i * 2, by + 16, 1, 2, '#6aa0e0');
     });
   drawParticles();
-  text('YOU FOUND BISCUIT!', W / 2, 30, CONFETTI[Math.floor(time * 6) % 5]);
-  text('Tea and cake for everyone!', W / 2, 50);
-  text('Even the beavers came.', W / 2, 64, '#f0e0a0');
-  if (stateT > 2 && Math.floor(time * 2) % 2) text('Press Enter to play again', W / 2, 228);
+  rect(0, 0, W, H, 'rgba(20,30,90,0.15)');
+  const fl = Math.sin(time * 11) * 3;
+  drawLighting([[128, 128, 78 + fl], [84, 150, 40], [100, 112, 34], [155, 116, 34]], 0.62);
+  drawEyes(0);
+  drawParticles(true);
+  text('BISCUIT. FOUND.', W / 2, 12, '#e0b040');
+  text('TEA. CAKE. PEACE.', W / 2, 26);
+  text('EVEN THE SYNDICATE CAME.', W / 2, 40, '#a8a090');
+  text('BEAVERS SOAKED: ' + score, W / 2, 204, '#8ac0ff');
+  if (stateT > 2 && Math.floor(time * 2) % 2) text('PRESS ENTER', W / 2, 220, '#e0b040');
+  drawAtmosphere(0);
 }
 
 function renderTitle() {
-  lv = LEVELS[0];
+  eyes = [];
+  lv = LEVELS[2];
   drawGround(0);
   drawBorder(0);
-  text('CAT TREE!', W / 2, 28, '#ffd040', 16);
-  ctx.drawImage(catImg, 110, 56, 36, 33);
-  text('Biscuit is lost in', W / 2, 100);
-  text('the forest. Find her!', W / 2, 112);
-  ['brown', 'jack', 'run', 'roll'].forEach((k, i) => draw(beaverImg[k], 56 + i * 40, 138 + (Math.floor(time * 4 + i) % 2)));
-  text('Dodge the beavers!', W / 2, 160, '#f0e0a0');
-  if (Math.floor(time * 2) % 2) text('PRESS ENTER', W / 2, 186, '#ffd040');
-  text('Arrows/WASD: move', W / 2, 206, '#ccc');
-  text('M: music  P: pause', W / 2, 220, '#ccc');
+  ctx.drawImage(catImg, 110, 66, 42, 39);
+  for (let i = 0; i < 7; i++) if (Math.floor(time * 0.7 + i * 1.3) % 4) eyes.push([20 + i * 32, 140 + (i % 2) * 14]);
+  drawLighting([[128, 86, 70 + Math.sin(time * 9) * 2]], 0.85);
+  drawEyes(0);
+  text('CAT TREE', W / 2, 26, '#b8281e', 16);
+  text('THEY TOOK THE WRONG CAT.', W / 2, 48, '#d8d0c0');
+  if (Math.floor(time * 2) % 2) text('PRESS ENTER', W / 2, 178, '#e0b040');
+  text('ARROWS MOVE  SPACE JUMP', W / 2, 200, '#8a8478');
+  text('X SHOOT  M MUSIC  P PAUSE', W / 2, 214, '#8a8478');
+  drawAtmosphere(2);
+}
+
+const INTRO = ['THEY CHEWED THROUGH MY FENCE.', 'THEY TOOK BISCUIT.', "THEY THINK I'M JUST SOME", 'GUY WHO LOVES HIS CAT.', "THEY'RE NOT WRONG.", "THAT'S THE PROBLEM."];
+function renderIntro() {
+  rect(0, 0, W, H, '#050507');
+  INTRO.forEach((l, i) => { if (stateT > i * 1.1) text(l, W / 2, 50 + i * 20, i === 5 ? '#b8281e' : '#d8d0c0'); });
+  if (stateT > 7 && Math.floor(time * 2) % 2) text('PRESS ENTER', W / 2, 196, '#e0b040');
+  drawAtmosphere(2);
 }
 
 function render() {
   ctx.clearRect(0, 0, W, H);
   if (state === 'title') return renderTitle();
+  if (state === 'intro') return renderIntro();
   if (state === 'party') return renderParty();
   renderPlay();
   if (state === 'clue') {
     const lines = lvlIdx === 0
-      ? [["You found Biscuit's bell!", '#f0c830'], ['Paw prints lead deeper'], ['into the woods...']]
-      : [['A tuft of orange fur!', '#f09030'], ['Biscuit must be close.'], ['It gets dark ahead...']];
-    if (stateT > 1) lines.push(['Press Enter', '#ffd040']);
+      ? [['HER BELL. STILL WARM.', '#e0b040'], ['THE TRAIL GOES DEEPER.'], ['SO DO THE TEETH.']]
+      : [['ORANGE FUR ON A TRAP.', '#e08028'], ['SHE FOUGHT BACK.'], ['THE DAM IS CLOSE.']];
+    if (stateT > 1) lines.push(['PRESS ENTER', '#e0b040']);
     box(lines, 90);
   }
   if (state === 'dead') {
-    const lines = [['TIMBER!', '#e8304a'], ['The beavers got you.']];
-    if (stateT > 1) lines.push(['Press Enter to try again', '#ffd040']);
+    const lines = [['TIMBER.', '#b8281e'], ['THE WOODS WIN THIS ROUND.']];
+    if (stateT > 1) lines.push(['PRESS ENTER. GET UP.', '#e0b040']);
     box(lines, 96);
   }
 }
 
 // ---------- input
 const key = {}, pointer = { down: false, x: 0, y: 0 };
-const KEYS = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right' };
+const KEYS = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
+  KeyX: 'fire', KeyJ: 'fire', KeyF: 'fire' };
 function confirm() {
-  if (state === 'title' && stateT > 0.3) startLevel(0);
+  if (state === 'title' && stateT > 0.3) { score = 0; hasGun = false; setState('intro'); }
+  else if (state === 'intro' && stateT > 0.5) startLevel(0);
   else if (state === 'clue' && stateT > 1) startLevel(lvlIdx + 1);
   else if (state === 'dead' && stateT > 1) startLevel(lvlIdx);
-  else if (state === 'party' && stateT > 2) { setState('title'); playMusic('title'); }
+  else if (state === 'party' && stateT > 2) { setState('title'); setRain(2); playMusic('title'); }
 }
+function jump() { if (player.jt <= 0) { player.jt = JUMP; sfx('jump'); } }
 addEventListener('keydown', e => {
   initAudio();
   if (KEYS[e.code]) { key[KEYS[e.code]] = true; e.preventDefault(); }
-  if (e.code === 'Enter' || e.code === 'Space') { confirm(); e.preventDefault(); }
+  if (e.code === 'Space') { e.preventDefault(); if (state === 'play' && !paused) jump(); else confirm(); }
+  if (e.code === 'Enter') { e.preventDefault(); confirm(); }
   if (e.code === 'KeyM') toggleMute();
   if (e.code === 'KeyP' && state === 'play') paused = !paused;
 });
