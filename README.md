@@ -3,7 +3,7 @@
 An 8-bit, top-down browser game. Biscuit the cat is lost in the forest. Walk through three levels (Sunny Pines, Autumn Woods, Deep Dark Forest), dodge the beavers' falling trees, and find Biscuit. Tea and cake at the end.
 
 ## Play
-Open `index.html` in a browser (download the repository, then double-click the file). No install needed.
+Download the repository (Code › Download ZIP), unzip it, double-click `index.html`. It opens in your browser. No install needed.
 
 - Arrows / WASD: move (or hold a finger/mouse on the screen to walk toward it)
 - Enter / Space: start, continue
@@ -16,7 +16,3 @@ Open `index.html` in a browser (download the repository, then double-click the f
 - **Roller** (hard hat): rolls logs down toward you.
 
 Fallen trees block the path for a few seconds. Three hearts per level; lose them all and the level starts again.
-
-## Files
-- `index.html`: page
-- `game.js`: the whole game (pixel art drawn in code, 8-bit music and sounds made with Web Audio)
